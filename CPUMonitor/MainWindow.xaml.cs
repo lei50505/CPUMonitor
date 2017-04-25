@@ -82,9 +82,27 @@ namespace CPUMonitor
             }
             return counterNameList.ToArray<string>();
         }
+        private delegate void SetPositionGate(double left, double top);
+        private void SetPosition(double left, double top)
+        {
+            if (TextBlockMem.Dispatcher.Thread != Thread.CurrentThread)
+            {
+                SetPositionGate sg = new SetPositionGate(SetPosition);
+                Dispatcher.Invoke(sg, new object[] { left, top });
+            }
+            else
+            {
+                Left = left;
+                Top = top;
+            }
+        }
         PerformanceCounter ProcessorPercentCounter = null;
         ManagementClass MemeryManagement = null;
         ManagementObjectCollection MemeryCollection = null;
+        string ConfigWindowLeftValue =  null;
+        string ConfigWindowTopValue = null;
+        double screenWidth = 0;
+        double screenHeight = 0;
         public MainWindow()
         {
             InitializeComponent();
@@ -99,19 +117,21 @@ namespace CPUMonitor
 
 
             //设置初始位置
-            string ConfigWindowLeftValue = UConfig.get(ConfigWindowLeftKey);
-            string ConfigWindowTopValue = UConfig.get(ConfigWindowTopKey);
+            ConfigWindowLeftValue = UConfig.get(ConfigWindowLeftKey);
+            ConfigWindowTopValue = UConfig.get(ConfigWindowTopKey);
 
             if (ConfigWindowLeftValue == null || ConfigWindowTopValue == null)
             {
-                double screenWidth = SystemParameters.PrimaryScreenWidth;
-                double screenHeight = SystemParameters.PrimaryScreenHeight;
+                screenWidth = SystemParameters.PrimaryScreenWidth;
+                screenHeight = SystemParameters.PrimaryScreenHeight;
 
                 Left = screenWidth - 150;
                 Top = screenHeight - 130;
             }
             else
             {
+                screenWidth = Convert.ToDouble(ConfigWindowLeftValue);
+                screenHeight = Convert.ToDouble(ConfigWindowTopValue);
                 Left = Convert.ToDouble(ConfigWindowLeftValue);
                 Top = Convert.ToDouble(ConfigWindowTopValue);
             }
@@ -166,6 +186,11 @@ namespace CPUMonitor
         double MemeryPercent = 0.0;
         private void run(object source, ElapsedEventArgs e)
         {
+            if (isDrag ==false)
+            {
+                SetPosition(screenWidth, screenHeight);
+            }
+            
             MemeryCollection = MemeryManagement.GetInstances();
 
             foreach (ManagementObject mo in MemeryCollection)
@@ -189,21 +214,26 @@ namespace CPUMonitor
         }
 
         bool FlagMenuItemLockMoveIsChecked = false;
-
+        bool isDrag = false;
         private void Window_MouseDown(object sender, MouseButtonEventArgs e)
         {
             if (FlagMenuItemLockMoveIsChecked == true)
             {
                 return;
             }
+            isDrag = true;
             if (e.LeftButton == MouseButtonState.Pressed)
             {
                 DragMove();
             }
+            isDrag = false;
             double currentWindowLeft = this.Left;
             double currentWindowTop = this.Top;
+            screenWidth = currentWindowLeft;
+            screenHeight = currentWindowTop;
             UConfig.add(ConfigWindowLeftKey, currentWindowLeft.ToString());
             UConfig.add(ConfigWindowTopKey, currentWindowTop.ToString());
+            isDrag = false;
         }
         private string ConfigWindowLeftKey = "ConfigWindowLeft";
         private string ConfigWindowTopKey = "ConfigWindowTop";
